@@ -117,9 +117,7 @@ static void *producer_thread(void *arg)
 
         if (vbq_remaining > 0)
         {
-            size_t count = vbq_queue.size - vbq_queue.nelem;
-            count = MIN(count, vbq_remaining);
-            count = MIN(count, MAX_BYTES_PER_OP);
+            size_t count = MIN(MAX_BYTES_PER_OP, vbq_remaining);
             uint8_t *bytes = malloc(count);
             assert(bytes);
             for (size_t i = 0; i < count; i++)
@@ -133,9 +131,7 @@ static void *producer_thread(void *arg)
 
         if (abq_remaining > 0)
         {
-            size_t count = abq_queue.size - abq_queue.nelem;
-            count = MIN(count, abq_remaining);
-            count = MIN(count, MAX_BYTES_PER_OP);
+            size_t count = MIN(MAX_BYTES_PER_OP, abq_remaining);
             uint8_t *bytes = malloc(count);
             assert(bytes);
             for (size_t i = 0; i < count; i++)
@@ -156,9 +152,7 @@ static void *producer_thread(void *arg)
         
         if (lfq_remaining > 0)
         {
-            size_t count = lfq_queue.size - (lfq_queue.tail - lfq_queue.head);
-            count = MIN(count, lfq_remaining);
-            count = MIN(count, MAX_BYTES_PER_OP);
+            size_t count = MIN(MAX_BYTES_PER_OP, lfq_remaining);
             uint8_t *bytes = malloc(count);
             assert(bytes);
             for (size_t i = 0; i < count; i++)
@@ -179,9 +173,7 @@ static void *producer_thread(void *arg)
         
         if (bq_remaining > 0)
         {
-            size_t count = bq_queue.mask + 1 - bq_nelem(&bq_queue);
-            count = MIN(count, bq_remaining);
-            count = MIN(count, MAX_BYTES_PER_OP);
+            size_t count = MIN(MAX_BYTES_PER_OP, bq_remaining);
             uint8_t *bytes = malloc(count);
             assert(bytes);
             for (size_t i = 0; i < count; i++)
@@ -234,8 +226,7 @@ static void *consumer_thread(void *arg)
 
         if (vbq_remaining > 0)
         {
-            size_t count = MIN(vbq_queue.nelem, vbq_remaining);
-            count = MIN(count, MAX_BYTES_PER_OP);
+            size_t count = MIN(MAX_BYTES_PER_OP, vbq_remaining);
             uint8_t *bytes = malloc(count);
             assert(bytes);
             
