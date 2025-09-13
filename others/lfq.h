@@ -25,7 +25,7 @@ static void *lfq_queue_get_push_buf(lfq *q, size_t *len)
     // This private copy of head is essential to have a coherent
     // value throughout the function, regardless of the consumer's
     // actions.
-    size_t head = q->head;
+    size_t head = __atomic_load_n(&q->head, __ATOMIC_ACQUIRE);
     size_t head_n_wrap = head / q->size;
     size_t tail_n_wrap = q->tail / q->size;
 
@@ -49,7 +49,7 @@ static void *lfq_queue_get_pop_buf(lfq *q, size_t *len)
     // This private copy of tail is essential to have a coherent
     // value throughout the function, regardless of the consumer's
     // actions.
-    size_t tail = q->tail;
+    size_t tail = __atomic_load_n(&q->tail, __ATOMIC_ACQUIRE);
     size_t head_n_wrap = q->head / q->size;
     size_t tail_n_wrap = tail / q->size;
 
