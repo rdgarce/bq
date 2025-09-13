@@ -104,7 +104,12 @@ static void *bq_popbuf(bq *q, size_t *len)
     // This private copy of tail is essential to have a coherent
     // value throughout the function, regardless of the consumer's
     // actions.
-    size_t tail = q->tail;
+    // The ACQUIRE semantic is required because, otherwise, reads to
+    // q->data[q->head] can be reordered before the q->tail read.
+    // If the read is also reordered before the writes of the same
+    // bytes by the producer in the memory total order, the consumer
+    // will read bytes not yet produced.
+    size_t tail = __atomic_load_n(&q->tail, __ATOMIC_ACQUIRE);
     // The cond variable is 0 iff tail is in the same block of
     // (q->mask + 1) bytes, otherwise is 1. We use this variable
     // to subtract from the final number conditionally.
@@ -134,12 +139,17 @@ static void *bq_pushbuf(bq *q, size_t *len)
     // This private copy of head is essential to have a coherent
     // value throughout the function, regardless of the producer's
     // actions.
-    size_t head = q->head;
+    // The ACQUIRE semantic is required because, otherwise, writes to
+    // q->data[q->tail] can be reordered before the q->head read.
+    // If the write is also reordered before the read of the same
+    // bytes by the consumer in the memory total order, the producer
+    // will overwrite still unconsumed bytes.
+    size_t head = __atomic_load_n(&q->head, __ATOMIC_ACQUIRE);
     // The cond variable is 0 iff tail is in the same block of
     // (q->mask + 1) bytes, otherwise is 1. We use this variable
     // to subtract from the final number conditionally.
     size_t cond = (q->tail >> q->cap_lg2) - (head >> q->cap_lg2);
-    *len = q->mask + 1 - (q->tail - head) - (q->head & q->mask) * (1 - cond);
+    *len = q->mask + 1 - (q->tail - head) - (head & q->mask) * (1 - cond);
 
     return q->data + (q->tail & q->mask);
 }
