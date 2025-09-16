@@ -40,22 +40,33 @@
  *      only updates one and only one variable and that a stale value
  *      corresponds anyway to a correct ring state, there are no undefined
  *      behaviours. The only needed thing is that head and tail are
- *      updated with a release consistency to be sure that the
- *      buffer memory is updated before the state variable.
+ *      updated with a release consistency and read with an acquire
+ *      consistency to be sure that the buffer memory is updated before
+ *      the state variable.
  *      If head + num_elemen is chosen, then you have to atomically
  *      modify both of them in the consumer after a pop or you would
  *      have an incorrect state. This leads to the need for a
  *      lock or to store both variable in a single word accessible
  *      atomically, but this seems to me too much of a trick considering
  *      the other option.
- * 3: By storing the values of head and tail without doing the modulo,
- *      you solve the problem of not knowing whether the ring is empty
- *      of full when head == tail. Now, head == tail always means that
- *      the ring is empty and (tail - head) == capacity always means that
- *      it'is full.
+ * 3: By restricting the queue length to be a power of 2 and storing the values
+ *      of head and tail without doing the modulo, you solve the problem of
+ *      not knowing whether the ring is empty of full when head == tail.
+ *      Now, head == tail always means that the ring is empty and
+ *      (tail - head) == capacity always means that it'is full. Even when tail
+ *      wraps around SIZE_MAX, the implicit (mod SIZE_MAX+1) on all operations
+ *      allows the result to be correct. NOTE: When storing head and tail without
+ *      the modulo, the queue length MUST be a power of 2, otherwise the implicit
+ *      (mod SIZE_MAX+1) on all operations will lead to incorrect states.
+ *      EXAMPLE:
+ *      Suppose the queue is size 3 and head is SIZE_MAX, about to tick over to zero:
+ *      To pop the next element you access data[head % 3] == data[0], because
+ *      SIZE_MAX % 3 == 0. After the pop the element, you update head as follows:
+ *      head = head + 1 == 0, because SIZE_MAX + 1 == 0.
+ *      We've incremented head but the effective value is still zero.
  * 4: By having the length equal to a power of two, all modulo operations
  *      become bitwise operations.
- * 5: By having the length equal to a power of two, you can use some bitwise
+ * 5: By having the length equal to a power of two, you can use bitwise
  *      operations to have a complete branchless implementation.
  */
 
@@ -91,12 +102,6 @@ static bq bq_make(char *buf, size_t len)
         .cap_lg2 = msb, .data = buf};
 }
 
-/* Returns the total number of bytes available in the queue [q] */
-static size_t bq_nelem(const bq *q)
-{
-    return q->tail - q->head;
-}
-
 /* Given the byte queue [q], returns a pointer to the buffer of
  * poppable bytes and sets [*len] to the len of the buffer */
 static void *bq_popbuf(bq *q, size_t *len)
@@ -111,9 +116,12 @@ static void *bq_popbuf(bq *q, size_t *len)
     // will read bytes not yet produced.
     size_t tail = __atomic_load_n(&q->tail, __ATOMIC_ACQUIRE);
     // The cond variable is 0 iff tail is in the same block of
-    // (q->mask + 1) bytes, otherwise is 1. We use this variable
-    // to subtract from the final number conditionally.
-    size_t cond = (tail >> q->cap_lg2) - (q->head >> q->cap_lg2);
+    // (q->mask + 1) bytes, otherwise is:
+    // -- 1, when tail is in the next block and has not wrapped around SIZE_MAX,
+    // -- A big odd negative number, when tail has wrapped around SIZE_MAX.
+    // With the final bitwise AND, we reduce the possible results to (0, 1).
+    // We use this variable to subtract from the final number conditionally.
+    size_t cond = ((tail >> q->cap_lg2) - (q->head >> q->cap_lg2)) & 0x1;
     *len = tail - q->head - (tail & q->mask) * cond;
 
     return q->data + (q->head & q->mask);
@@ -146,9 +154,12 @@ static void *bq_pushbuf(bq *q, size_t *len)
     // will overwrite still unconsumed bytes.
     size_t head = __atomic_load_n(&q->head, __ATOMIC_ACQUIRE);
     // The cond variable is 0 iff tail is in the same block of
-    // (q->mask + 1) bytes, otherwise is 1. We use this variable
-    // to subtract from the final number conditionally.
-    size_t cond = (q->tail >> q->cap_lg2) - (head >> q->cap_lg2);
+    // (q->mask + 1) bytes, otherwise is:
+    // -- 1, when tail is in the next block and has not wrapped around SIZE_MAX,
+    // -- A big odd negative number, when tail has wrapped around SIZE_MAX.
+    // With the final bitwise AND, we reduce the possible results to (0, 1).
+    // We use this variable to subtract from the final number conditionally.
+    size_t cond = ((q->tail >> q->cap_lg2) - (head >> q->cap_lg2)) & 0x1;
     *len = q->mask + 1 - (q->tail - head) - (head & q->mask) * (1 - cond);
 
     return q->data + (q->tail & q->mask);

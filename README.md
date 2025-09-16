@@ -13,7 +13,7 @@ A high performance, MT-safe, lockfree and branchless circular byte buffer for SP
 - `bq.h`: Header file with the **byte queue (bq)** implementation.
 - `profiler.h`: Profiler code used for performance measure.
 - `test.c`: Test code comparing BQ with other implementations and testing their correctness.
-- `others/`: Folder containing five other implementations for comparison.
+- `others/`: Containing other four implementations for comparison.
 
 ## Usage
 
