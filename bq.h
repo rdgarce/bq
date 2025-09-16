@@ -53,7 +53,7 @@
  *      of head and tail without doing the modulo, you solve the problem of
  *      not knowing whether the ring is empty of full when head == tail.
  *      Now, head == tail always means that the ring is empty and
- *      (tail - head) == capacity always means that it'is full. Even when tail
+ *      (tail - head) == capacity always means that it is full. Even when tail
  *      wraps around SIZE_MAX, the implicit (mod SIZE_MAX+1) on all operations
  *      allows the result to be correct. NOTE: When storing head and tail without
  *      the modulo, the queue length MUST be a power of 2, otherwise the implicit
